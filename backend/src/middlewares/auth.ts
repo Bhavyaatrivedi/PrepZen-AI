@@ -1,17 +1,20 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_ME';
+import { config } from '../config';
+import { ApiError } from '../utils/apiError';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+  if (!auth) {
+    return next(new ApiError('Unauthorized', 401));
+  }
+
   const token = auth.replace('Bearer ', '');
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    (req as any).userId = decoded.id;
+    const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }) as { id: string };
+    req.userId = decoded.id;
     next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Invalid token' });
+  } catch {
+    next(new ApiError('Invalid token', 401));
   }
 }

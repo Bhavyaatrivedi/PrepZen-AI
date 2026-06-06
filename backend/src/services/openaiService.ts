@@ -1,8 +1,8 @@
 import AIAnalysis from '../models/AIAnalysis';
 import OpenAI from 'openai';
+import { config } from '../config';
 
-const key = process.env.OPENAI_API_KEY || '';
-const client = new OpenAI({ apiKey: key });
+const client = new OpenAI({ apiKey: config.openAiKey });
 
 async function parseResponseText(resp: any) {
   const output = resp?.output?.[0]?.content?.[0]?.text;
@@ -12,7 +12,7 @@ async function parseResponseText(resp: any) {
 
 export async function runJournalAnalysis(userId: any, journalId: any, text: string) {
   const prompt = `Analyze the journal entry and return JSON with keys: emotion, sentiment, confidence_level (0-10), stress_triggers (array), burnout_risk (LOW|MEDIUM|HIGH), recommendations (array). Entry: ${text}`;
-  if (!key) {
+  if (!config.openAiKey) {
     return {
       emotion: 'neutral',
       sentiment: 'mixed',
@@ -47,7 +47,7 @@ export async function runJournalAnalysis(userId: any, journalId: any, text: stri
 }
 
 export async function runChat(userId: any, message: string) {
-  if (!key) return 'AI key not configured. Install OPENAI_API_KEY in env.';
+  if (!config.openAiKey) return 'AI key not configured. Install OPENAI_API_KEY in env.';
   const prompt = `You are a supportive wellness coach for students. Provide supportive, non-medical responses. User message: ${message}`;
   const resp = await client.responses.create({
     model: 'gpt-3.5-turbo',

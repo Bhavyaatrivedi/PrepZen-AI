@@ -1,40 +1,71 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import API, { setToken } from '../services/api';
 
 interface IUser { id: string; email: string; name?: string }
 
-const AuthContext = createContext<any>(null);
+interface AuthContextValue {
+  user: IUser | null;
+  token: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function loadUserFromStorage(): { user: IUser | null; token: string | null } {
+  const token = localStorage.getItem('prepzen-token');
+  const user = localStorage.getItem('prepzen-user');
+  return { token, user: user ? JSON.parse(user) : null };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<IUser | null>(null);
-  const [token, setTokenState] = useState<string | null>(null);
+  const [user, setUser] = useState<IUser | null>(() => loadUserFromStorage().user);
+  const [token, setTokenState] = useState<string | null>(() => loadUserFromStorage().token);
 
-  const login = async (email: string, password: string) => {
+  useEffect(() => {
+    if (token) {
+      setToken(token);
+      localStorage.setItem('prepzen-token', token);
+    } else {
+      setToken();
+      localStorage.removeItem('prepzen-token');
+      localStorage.removeItem('prepzen-user');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('prepzen-user', JSON.stringify(user));
+    }
+  }, [user]);
+
+  const login = useCallback(async (email: string, password: string) => {
     const res = await API.post('/auth/login', { email, password });
     const t = res.data.token;
-    setToken(t);
     setTokenState(t);
     setUser(res.data.user);
-    setToken(t);
-  };
+  }, []);
 
-  const register = async (email: string, password: string, name?: string) => {
+  const register = useCallback(async (email: string, password: string, name?: string) => {
     const res = await API.post('/auth/register', { email, password, name });
     const t = res.data.token;
-    setToken(t);
     setTokenState(t);
     setUser(res.data.user);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     setTokenState(null);
-    setToken();
-  };
+  }, []);
 
-  return <AuthContext.Provider value={{ user, token, login, register, logout }}>{children}</AuthContext.Provider>;
+  const value = useMemo<AuthContextValue>(() => ({ user, token, login, register, logout }), [user, token, login, register, logout]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used inside AuthProvider');
+  return context;
 }
